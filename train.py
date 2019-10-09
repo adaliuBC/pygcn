@@ -11,6 +11,7 @@ import torch.optim as optim
 
 from pygcn.utils import load_data, accuracy
 from pygcn.models import GCN
+from tensorboardX import SummaryWriter
 
 # Training settings
 parser = argparse.ArgumentParser()
@@ -29,7 +30,9 @@ parser.add_argument('--hidden', type=int, default=16,
                     help='Number of hidden units.')
 parser.add_argument('--dropout', type=float, default=0.5,
                     help='Dropout rate (1 - keep probability).')
-
+parser.add_argument('--nlayer', type=int, default=6,
+                    help='Number of layers in GCN.')
+                    
 args = parser.parse_args()
 args.cuda = not args.no_cuda and torch.cuda.is_available()
 
@@ -45,9 +48,11 @@ adj, features, labels, idx_train, idx_val, idx_test = load_data()
 model = GCN(nfeat=features.shape[1],
             nhid=args.hidden,
             nclass=labels.max().item() + 1,
+            nlayer = args.nlayer,
             dropout=args.dropout)
 optimizer = optim.Adam(model.parameters(),
                        lr=args.lr, weight_decay=args.weight_decay)
+writer = SummaryWriter(log_dir='log')
 
 if args.cuda:
     model.cuda()
@@ -77,6 +82,8 @@ def train(epoch):
 
     loss_val = F.nll_loss(output[idx_val], labels[idx_val])
     acc_val = accuracy(output[idx_val], labels[idx_val])
+    writer.add_scalar('train', loss_train, epoch)
+    writer.add_scalar('valid', loss_val, epoch)
     print('Epoch: {:04d}'.format(epoch+1),
           'loss_train: {:.4f}'.format(loss_train.item()),
           'acc_train: {:.4f}'.format(acc_train.item()),
@@ -101,6 +108,6 @@ for epoch in range(args.epochs):
     train(epoch)
 print("Optimization Finished!")
 print("Total time elapsed: {:.4f}s".format(time.time() - t_total))
-
+writer.close()
 # Testing
 test()
