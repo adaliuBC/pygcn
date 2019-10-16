@@ -33,15 +33,16 @@ class GraphConvolution(Module):
             self.bias.data.uniform_(-stdv, stdv)
 
     def forward(self, input, adj, gn_func, nn_func):
+        #pdb.set_trace()
         support = torch.mm(input, self.weight)
         
-        support = nn_func(support)
+        #print("size1:", support.shape, self.weight.shape, input.shape)
+        #support = nn_func(support)
         
         output = F.relu(support)
-        
-        #output = nn_func(output)
-        
-        output = torch.spmm(adj, support)
+        #print("size2:", adj.shape, output.shape)
+        output = torch.spmm(adj, output)
+        #print("size3:", adj.shape, output.shape)
         if self.bias is not None:
             return output + self.bias
         else:

@@ -1,7 +1,9 @@
 import numpy as np
 import scipy.sparse as sp
 import torch
+import random
 
+import pdb
 
 def encode_onehot(labels):
     classes = set(labels)
@@ -20,9 +22,13 @@ def load_data(path="./data/cora/", dataset="cora"):
                                         dtype=np.dtype(str))
     #将txt每行存进(行数×列数)的列表里
     features = sp.csr_matrix(idx_features_labels[:, 1:-1], dtype=np.float32)
+    features = np.array(features.todense())
     labels = encode_onehot(idx_features_labels[:, -1])  #one_hot编码class
-    #
-
+    ##
+    print(type(features))
+    print(labels)
+    ##
+    
     # build graph
     idx = np.array(idx_features_labels[:, 0], dtype=np.int32)  #idx--paper_id
     idx_map = {j: i for i, j in enumerate(idx)}  #paper_id:idx
@@ -33,26 +39,68 @@ def load_data(path="./data/cora/", dataset="cora"):
     adj = sp.coo_matrix((np.ones(edges.shape[0]), (edges[:, 0], edges[:, 1])),
                         shape=(labels.shape[0], labels.shape[0]),
                         dtype=np.float32)
-
+    
     # build symmetric adjacency matrix
     adj = adj + adj.T.multiply(adj.T > adj) - adj.multiply(adj.T > adj)  #.multiply是逐元素相乘
-
-    #features = normalize(features)   #把features的每列从(0,0,1,0,1,0)变成(0,0,1/2,0,1/2,0)即 使和为1
+    print(adj[2698,2697], adj[0, 0])
+    features = normalize(features)   #把features的每列从(0,0,1,0,1,0)变成(0,0,1/2,0,1/2,0)即 使和为1
     adj = normalize(adj + sp.eye(adj.shape[0]))  #eye:对角线为1的稀疏矩阵
-
     idx_train = range(140)
     idx_val = range(200, 500)
     idx_test = range(500, 1500)
-
-    features = torch.FloatTensor(np.array(features.todense()))
+    
+    
+    i = 0
+    j = 0
+    feat_index=2708
+    #print(adj.shape)
+    #print(adj[0, 9])
+    for i in range(0, 2708):
+        for j in range(i+1, 2708):
+            if(adj[i, j]!=0):  #if这两点之间有edge
+                lambd = random.uniform(0, 1)
+                #+feature
+                feature_edge = lambd*features[i] + (1-lambd)*features[j]
+                feature_edge = feature_edge[:, np.newaxis]
+                #+label
+                label_fir = lambd*labels[i]
+                label_sec = (1-lambd)*labels[j]
+                label_fir = label_fir[:, np.newaxis]
+                label_sec = label_sec[:, np.newaxis]
+                #+adj
+                adj_edge = lambd*adj[:, i] + (1-lambd)*adj[:, j]
+                features = np.r_[features, feature_edge.T]
+                features = np.r_[features, feature_edge.T]
+                labels = np.r_[labels, label_fir.T]
+                labels = np.r_[labels, label_sec.T]
+                adj = sp.hstack([adj, adj_edge]).tocsr()
+                adj = sp.hstack([adj, adj_edge]).tocsr()
+                feat_index += 1
+        print(feat_index)
+    print("-----")
+    for i in range(2708, feat_index):
+        adj_edge = adj[:, i]
+        #print(adj_edge.shape)
+        adj_zero = sp.coo_matrix((1, 2*(feat_index-i)), dtype=np.float32)
+        #print(adj_zero.shape)
+        adj_edge = sp.hstack([adj_edge.T, adj_zero]).tocsr()
+        #print(adj_edge.shape)
+        print(adj.shape)
+        adj = sp.vstack([adj, adj_edge]).tocsr()
+        adj = sp.vstack([adj, adj_edge]).tocsr()
+    idx_edge = range(2708, feat_index)
+    
+    features = torch.FloatTensor(np.array(features))
     labels = torch.LongTensor(np.where(labels)[1])
+    #labels = torch.LongTensor(labels)
     adj = sparse_mx_to_torch_sparse_tensor(adj)
-
+    print(adj)
     idx_train = torch.LongTensor(idx_train)
     idx_val = torch.LongTensor(idx_val)
     idx_test = torch.LongTensor(idx_test)
-
-    return adj, features, labels, idx_train, idx_val, idx_test
+    idx_edge = torch.LongTensor(idx_edge)
+    
+    return adj, features, labels, idx_train, idx_val, idx_test, idx_edge
 
 
 def normalize(mx):

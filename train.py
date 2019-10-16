@@ -13,6 +13,8 @@ from pygcn.utils import load_data, accuracy
 from pygcn.models import GCN
 from tensorboardX import SummaryWriter
 
+import pdb
+
 # Training settings
 parser = argparse.ArgumentParser()
 parser.add_argument('--no-cuda', action='store_true', default=False,
@@ -42,8 +44,8 @@ if args.cuda:
     torch.cuda.manual_seed(args.seed)
 
 # Load data
-adj, features, labels, idx_train, idx_val, idx_test = load_data()
-
+adj, features, labels, idx_train, idx_val, idx_test, idx_edge = load_data()
+print("1:", features.shape[1], labels.shape)
 # Model and optimizer
 model = GCN(nfeat=features.shape[1],
             nhid=args.hidden,
@@ -62,6 +64,7 @@ if args.cuda:
     idx_train = idx_train.cuda()
     idx_val = idx_val.cuda()
     idx_test = idx_test.cuda()
+    idx_edge = idx_edge.cuda()
 
 
 def train(epoch):
@@ -69,8 +72,12 @@ def train(epoch):
     model.train()
     optimizer.zero_grad()
     output = model(features, adj)
-    loss_train = F.nll_loss(output[idx_train], labels[idx_train])
+    #print("2:", output.shape, labels.shape)
+    w_edge = 0.1 ##
+    
+    loss_train = F.nll_loss(output[idx_train], labels[idx_train]) + w_edge*F.nll_loss(output[idx_edge], labels[idx_edge])
     acc_train = accuracy(output[idx_train], labels[idx_train])
+    loss_outedge_train = F.nll_loss(output[idx_train], labels[idx_train])
     loss_train.backward()
     optimizer.step()
 
@@ -89,7 +96,8 @@ def train(epoch):
           'acc_train: {:.4f}'.format(acc_train.item()),
           'loss_val: {:.4f}'.format(loss_val.item()),
           'acc_val: {:.4f}'.format(acc_val.item()),
-          'time: {:.4f}s'.format(time.time() - t))
+          'time: {:.4f}s'.format(time.time() - t),
+          'loss_outedge_train: {:.4f}'.format(loss_outedge_train.item()))
 
 
 def test():
