@@ -52,6 +52,10 @@ model = GCN(nfeat=features.shape[1],
             dropout=args.dropout)
 optimizer = optim.Adam(model.parameters(),
                        lr=args.lr, weight_decay=args.weight_decay)
+lr_scheduler = optim.lr_scheduler.MultiStepLR(
+        optimizer,
+        milestones=[10000],
+        gamma=0.1)
 writer = SummaryWriter(log_dir='log')
 
 if args.cuda:
@@ -68,12 +72,14 @@ def train(epoch):
     t = time.time()
     model.train()
     optimizer.zero_grad()
+    
     output = model(features, adj)
     loss_train = F.nll_loss(output[idx_train], labels[idx_train])
     acc_train = accuracy(output[idx_train], labels[idx_train])
+
     loss_train.backward()
     optimizer.step()
-
+    lr_scheduler.step()
     if not args.fastmode:
         # Evaluate validation set performance separately,
         # deactivates dropout during validation run.
