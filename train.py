@@ -79,7 +79,7 @@ def train(epoch):
 
     loss_train.backward()
     optimizer.step()
-    lr_scheduler.step()
+    #lr_scheduler.step()
     if not args.fastmode:
         # Evaluate validation set performance separately,
         # deactivates dropout during validation run.
